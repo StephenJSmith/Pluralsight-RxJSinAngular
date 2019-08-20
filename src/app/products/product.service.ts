@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import { throwError, combineLatest } from 'rxjs';
-import { catchError, tap, map } from 'rxjs/operators';
+import { throwError, combineLatest, BehaviorSubject, Subject, merge } from 'rxjs';
+import { catchError, tap, map, scan } from 'rxjs/operators';
 
 import { Product } from './product';
 import { SupplierService } from '../suppliers/supplier.service';
@@ -34,11 +34,57 @@ export class ProductService {
     )
   );
 
+  private productSelectedSubject = new BehaviorSubject<number>(0);
+  productSelectedAction$ = this.productSelectedSubject.asObservable();
+
+  selectedProduct$ = combineLatest([
+    this.productsWithCategory$,
+    this.productSelectedAction$
+  ]).pipe(
+      map(([products, selectedProductId]) =>
+       products.find(product => product.id === selectedProductId)),
+      tap(product => console.log('selectedProduct', product))
+    );
+
+  private productInsertedSubject = new Subject<Product>();
+  productInsertedAction$ = this.productInsertedSubject.asObservable();
+
+  productsWithAdd$ = merge(
+    this.productsWithCategory$,
+    this.productInsertedAction$
+  ).pipe(
+    scan((acc: Product[], value: Product) => [...acc, value])
+  );
+
   constructor(
     private http: HttpClient,
     private productCategoryService: ProductCategoryService,
     private supplierService: SupplierService
   ) { }
+
+  selectedProductChanged(selectedProductId: number) {
+    this.productSelectedSubject.next(selectedProductId);
+  }
+
+  addProduct(newProduct?: Product) {
+    newProduct = newProduct || this.fakeProduct();
+    this.productInsertedSubject.next(newProduct);
+  }
+
+  private fakeProduct() {
+    const fake: Product = {
+      id: 42,
+      productName: 'Another One',
+      productCode: 'TBX-0042',
+      description: 'Our new product',
+      price: 8.9,
+      categoryId: 3,
+      category: 'Toolbox',
+      quantityInStock: 30
+    };
+
+    return fake;
+  }
 
   private handleError(err: any) {
     // in a real world app, we may send the server to some remote logging infrastructure
