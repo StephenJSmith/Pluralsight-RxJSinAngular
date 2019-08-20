@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import { throwError, combineLatest, BehaviorSubject, Subject, merge } from 'rxjs';
-import { catchError, tap, map, scan, shareReplay } from 'rxjs/operators';
+import { throwError, combineLatest, BehaviorSubject, Subject, merge, from } from 'rxjs';
+import { catchError, tap, map, scan, shareReplay, mergeMap, toArray, filter, switchMap } from 'rxjs/operators';
 
 import { Product } from './product';
 import { SupplierService } from '../suppliers/supplier.service';
 import { ProductCategoryService } from '../product-categories/product-category.service';
+import { Supplier } from '../suppliers/supplier';
 
 @Injectable({
   providedIn: 'root'
@@ -57,6 +58,31 @@ export class ProductService {
   ).pipe(
     scan((acc: Product[], value: Product) => [...acc, value])
   );
+
+  // TODO: Get it all approach
+  // selectedProductSuppliers$ = combineLatest([
+  //   this.selectedProduct$,
+  //   this.supplierService.suppliers$
+  // ]).pipe(
+  //   map(([selectedProduct, suppliers]) =>
+  //     suppliers.filter(supplier => selectedProduct.supplierIds.includes(supplier.id))
+  //   )
+  // );
+
+  // TODO: Just in time approach
+  selectedProductSuppliers$ = this.selectedProduct$
+    .pipe(
+      filter(selectedProduct => Boolean(selectedProduct)),
+      switchMap(selectedProduct =>
+        from(selectedProduct.supplierIds)
+          .pipe(
+            mergeMap(supplierId =>
+              this.http.get<Supplier>(`${this.supplierService.suppliersUrl}/${supplierId}`)),
+              toArray(),
+              tap(suppliers => console.log('product suppliers', JSON.stringify(suppliers)))
+          )
+        )
+    );
 
   constructor(
     private http: HttpClient,
